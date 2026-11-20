@@ -93,6 +93,7 @@
     .cart-total strong{font:800 22px "Outfit",sans-serif;color:var(--navy)}
     .cart-disclaimer{background:#f3f5ef;color:#6a7974;padding:13px 20px;font-size:11px;line-height:1.5}
     .clear-btn{border:0;background:none;color:#b65c49;font-size:11px;font-weight:800;padding:12px 0 0;text-decoration:underline}
+    .service-picker{border-top:1px solid var(--line);padding-top:16px;margin-top:15px}.service-picker h3{font-size:16px;margin:0 0 10px}.service-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}.service-option{border:1px solid #d7e1de;background:#fff;border-radius:10px;padding:11px 7px;color:var(--navy);font-size:12px;font-weight:800}.service-option.selected{border-color:var(--navy);background:var(--teal)}.service-number-label{display:block;font-size:12px;font-weight:800;margin:14px 0 7px}.service-numbers{display:flex;gap:7px}.number-option{flex:1;min-width:0;border:1px solid #d7e1de;background:#fff;border-radius:8px;padding:9px 0;color:var(--navy);font-weight:800}.number-option.selected{background:var(--navy);color:#fff;border-color:var(--navy)}.service-status{font-size:12px;line-height:1.5;margin:13px 0 0;color:var(--muted)}.service-status strong{color:var(--navy)}.confirm-selection{width:100%;border:0;border-radius:10px;background:var(--coral);color:var(--navy);padding:12px;margin-top:13px;font-size:12px;font-weight:800}.confirm-selection:disabled{opacity:.48;cursor:not-allowed}.service-message{font-size:12px;line-height:1.45;color:#9a4b37;margin:9px 0 0}.service-message.success{color:#246251}.service-option:focus-visible,.number-option:focus-visible{outline:3px solid var(--coral);outline-offset:2px}
     .info-card{margin-top:17px;padding:20px}
     .info-card h2{font-size:19px;margin:0 0 13px}
     .info-card p{color:var(--muted);font-size:12px;line-height:1.65;margin-bottom:13px}
@@ -174,6 +175,19 @@
       <div class="cart-body">
        <div id="cart-items" aria-live="polite"></div>
        <div id="cart-summary"></div>
+       <section id="service-picker" class="service-picker canva-section" aria-labelledby="service-title">
+        <h3 id="service-title">Lugar de atención</h3>
+        <div class="service-options" role="group" aria-label="Elige el lugar de atención">
+         <button type="button" class="service-option canva-button" data-place="Mesa" aria-pressed="false">Mesa</button> <button type="button" class="service-option canva-button" data-place="Toldo playero" aria-pressed="false">Toldo playero</button>
+        </div>
+        <div id="service-number-area" hidden>
+         <span id="service-number-label" class="service-number-label">Número de mesa</span>
+         <div id="service-numbers" class="service-numbers" role="group" aria-labelledby="service-number-label"></div>
+        </div>
+        <p id="service-status" class="service-status" aria-live="polite">Elige Mesa o Toldo playero y un número del 1 al 5.</p>
+        <button id="confirm-selection" type="button" class="confirm-selection canva-button">Confirmar selección</button>
+        <p id="service-message" class="service-message" role="status" hidden></p>
+       </section>
       </div>
       <div class="cart-disclaimer">Este carrito es solo una vista previa. No envía pedidos ni procesa pagos.</div>
      </section>
@@ -237,7 +251,18 @@
     ];
 
     const cart = {};
+    let servicePlace = null;
+    let serviceNumber = null;
+    let selectionConfirmed = false;
     const allItems = categories.flatMap(c=>c.items);
+    function renderService(){
+      document.querySelectorAll('[data-place]').forEach(button=>{const selected=button.dataset.place===servicePlace;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected))});
+      document.getElementById('service-number-area').hidden=!servicePlace;
+      document.getElementById('service-number-label').textContent=servicePlace==='Toldo playero'?'Número de toldo playero':'Número de mesa';
+      document.getElementById('service-numbers').innerHTML=servicePlace?Array.from({length:5},(_,i)=>`<button type="button" class="number-option canva-button ${serviceNumber===i+1?'selected':''}" data-service-number="${i+1}" aria-pressed="${serviceNumber===i+1}" aria-label="${servicePlace==='Mesa'?'Número de mesa':'Número de toldo playero'} ${i+1}">${i+1}</button>`).join(''):'';
+      document.getElementById('service-status').innerHTML=servicePlace&&serviceNumber?`<strong>${servicePlace} · ${serviceNumber}</strong>${selectionConfirmed?' · Selección confirmada':''}`:servicePlace?`<strong>${servicePlace}</strong> · Selecciona ${servicePlace==='Mesa'?'el número de mesa':'el número de toldo playero'} (1 al 5).`:'Elige Mesa o Toldo playero y un número del 1 al 5.';
+    }
+    function showServiceMessage(text,success=false){const el=document.getElementById('service-message');el.textContent=text;el.hidden=!text;el.classList.toggle('success',success)}
     const money = n=>"$"+n.toFixed(2);
     const escapeHTML = s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -259,6 +284,10 @@
     function openCart(){document.getElementById("cart-panel").classList.add("mobile-open");document.getElementById("cart-backdrop").classList.add("open");document.getElementById("close-cart").focus()}
     function closeCart(){document.getElementById("cart-panel").classList.remove("mobile-open");document.getElementById("cart-backdrop").classList.remove("open");document.getElementById("mobile-cart-button").focus()}
     document.addEventListener("click",e=>{
+      const place=e.target.closest('[data-place]'),number=e.target.closest('[data-service-number]');
+      if(place){if(servicePlace!==place.dataset.place){servicePlace=place.dataset.place;serviceNumber=null;selectionConfirmed=false;showServiceMessage('')}renderService()}
+      if(number){serviceNumber=Number(number.dataset.serviceNumber);selectionConfirmed=false;showServiceMessage('');renderService()}
+      if(e.target.closest('#confirm-selection')){if(!servicePlace||!serviceNumber){showServiceMessage(servicePlace?`Selecciona el ${servicePlace==='Mesa'?'Número de mesa':'Número de toldo playero'} antes de confirmar.`:'Elige Mesa o Toldo playero y su número antes de confirmar.')}else{selectionConfirmed=true;renderService();showServiceMessage(`Selección confirmada para ${servicePlace} ${serviceNumber}. Este resumen no envía pedidos.`,true)}}
       const add=e.target.closest("[data-add]"),decrease=e.target.closest("[data-decrease]");
       if(add){const id=add.dataset.add;cart[id]=(cart[id]||0)+1;renderCart()}
       if(decrease){const id=decrease.dataset.decrease;cart[id]--;if(cart[id]<=0)delete cart[id];renderCart()}
